@@ -1,0 +1,14 @@
+{
+  "name": "sneaker-price-sync",
+  "version": "1.0.0",
+  "description": "Syncs StockX lowest ask prices to Shopify variant prices with markup, runs hourly via cron.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  }
+}
