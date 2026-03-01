@@ -30,7 +30,6 @@ async function getLowestAsk(styleCode) {
 
     const html = response.data;
 
-    // Extract the Next.js embedded JSON data
     const jsonMatch = html.match(
       /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
     );
@@ -41,6 +40,8 @@ async function getLowestAsk(styleCode) {
     }
 
     const nextData = JSON.parse(jsonMatch[1]);
+    console.log("[StockX] pageProps keys:", Object.keys(nextData?.props?.pageProps || {}));
+
     const products =
       nextData?.props?.pageProps?.searchResults?.edges?.map((e) => e.node) || [];
 
