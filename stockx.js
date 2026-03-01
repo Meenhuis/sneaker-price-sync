@@ -24,53 +24,17 @@ async function getLowestAsk(styleCode) {
         api_key: SCRAPERAPI_KEY,
         url: targetUrl,
         render: true,
+        wait: 5000,
       },
       timeout: 60000,
     });
 
     const html = response.data;
 
-    const jsonMatch = html.match(
-      /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
-    );
+    // Log a snippet to see what we're working with
+    console.log("[StockX] HTML snippet:", html.slice(0, 3000));
 
-    if (!jsonMatch) {
-      console.warn(`[StockX] Could not find __NEXT_DATA__ for: ${styleCode}`);
-      return null;
-    }
-
-    const nextData = JSON.parse(jsonMatch[1]);
-    console.log("[StockX] pageProps keys:", Object.keys(nextData?.props?.pageProps || {}));
-
-    const products =
-      nextData?.props?.pageProps?.searchResults?.edges?.map((e) => e.node) || [];
-
-    if (!products.length) {
-      console.warn(`[StockX] No results for style code: ${styleCode}`);
-      return null;
-    }
-
-    const normalised = styleCode.replace(/[\s-]/g, "").toLowerCase();
-    let match = products.find((p) => {
-      const id = (p.styleId || "").replace(/[\s-]/g, "").toLowerCase();
-      return id === normalised;
-    });
-
-    if (!match) {
-      match = products[0];
-      console.warn(
-        `[StockX] Exact match not found for "${styleCode}", using first result: "${match.title}" (${match.styleId})`
-      );
-    }
-
-    const lowestAsk = match.market?.lowestAsk ?? null;
-
-    if (lowestAsk === null) {
-      console.warn(`[StockX] No lowestAsk for: ${styleCode}`);
-      return null;
-    }
-
-    return Number(lowestAsk);
+    return null; // temporary, until we know the structure
   } catch (err) {
     console.error(`[StockX] Error fetching price for "${styleCode}": ${err.message}`);
     return null;
