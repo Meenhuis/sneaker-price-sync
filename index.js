@@ -1,33 +1,13 @@
 require("dotenv").config();
 
-const cron = require("node-cron");
-const { runSync } = require("./sync");
-
-const required = ["SHOPIFY_STORE", "SHOPIFY_ACCESS_TOKEN"];
-const missing = required.filter((key) => !process.env[key]);
-if (missing.length) {
-  console.error(`[Startup] Missing required environment variables: ${missing.join(", ")}`);
-  console.error("[Startup] Copy .env.example to .env and fill in the values.");
-  process.exit(1);
-}
-
-console.log("[Startup] Sneaker price sync starting...");
-console.log(`[Startup] Store: ${process.env.SHOPIFY_STORE}`);
-console.log(`[Startup] Markup: €${process.env.MARKUP || 40}`);
-console.log("[Startup] Cron schedule: every hour (0 * * * *)");
-
-runSync().catch((err) => {
-  console.error("[Startup] Initial sync failed:", err.message);
-});
-
-cron.schedule("0 * * * *", () => {
-  console.log("[Cron] Hourly sync triggered.");
-  runSync().catch((err) => {
-    console.error("[Cron] Sync failed:", err.message);
-  });
-});
-
-console.log("[Startup] Cron job registered. Process will stay alive and sync every hour.");
+// Prevent sync errors from killing the HTTP server
+process.on('uncaughtException', (err) => console.error('[Server] Uncaught exception:', err.message));
+process.on('unhandledRejection', (reason) => console.error('[Server] Unhandled rejection:', reason));
+const _origExit = process.exit.bind(process);
+process.exit = (code) => {
+  if (code === 0) { _origExit(0); return; }
+  console.error(`[Server] process.exit(${code}) intercepted — keeping server alive`);
+};
 
 const http = require('http');
 const url = require('url');
@@ -35,7 +15,6 @@ const url = require('url');
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const { id_token, shop } = parsed.query;
-
   if (id_token && shop) {
     try {
       const params = new URLSearchParams({
@@ -66,3 +45,22 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(process.env.PORT || 3000, () => console.log('[Server] Listening'));
 
+const cron = require("node-cron");
+const { runSync } = require("./sync");
+
+if (!process.env.SHOPIFY_STORE || !process.env.SHOPIFY_ACCESS_TOKEN) {
+  console.error("[Startup] Missing SHOPIFY_STORE or SHOPIFY_ACCESS_TOKEN — sync disabled until configured");
+} else {
+  console.log("[Startup] Sneaker price sync starting...");
+  console.log(`[Startup] Store: ${process.env.SHOPIFY_STORE}`);
+  console.log(`[Startup] Markup: €${process.env.MARKUP || 40}`);
+
+  runSync().catch((err) => console.error("[Startup] Initial sync failed:", err.message));
+
+  cron.schedule("0 * * * *", () => {
+    console.log("[Cron] Hourly sync triggered.");
+    runSync().catch((err) => console.error("[Cron] Sync failed:", err.message));
+  });
+
+  console.log("[Startup] Cron registered. Syncing every hour.");
+}
