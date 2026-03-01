@@ -31,10 +31,11 @@ async function getLowestAsk(styleCode) {
 
     const html = response.data;
 
-    // Log a snippet to see what we're working with
-    console.log("[StockX] HTML snippet:", html.slice(0, 3000));
+    console.log("[StockX] HTML length:", html.length);
+    console.log("[StockX] Has lowestAsk:", html.includes("lowestAsk"));
+    console.log("[StockX] Has styleId:", html.includes('"styleId"'));
 
-    return null; // temporary, until we know the structure
+    return null;
   } catch (err) {
     console.error(`[StockX] Error fetching price for "${styleCode}": ${err.message}`);
     return null;
