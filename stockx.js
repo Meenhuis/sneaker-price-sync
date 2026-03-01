@@ -11,66 +11,67 @@ function delay() {
   return new Promise((resolve) => setTimeout(resolve, DELAY_MS));
 }
 
-/**
- * Fetches the lowest ask price (EUR) for a given style code from StockX.
- * Routes through ScraperAPI to bypass bot detection.
- *
- * @param {string} styleCode — e.g. "DO9392 200"
- * @returns {Promise<number|null>} lowest ask in EUR, or null
- */
 async function getLowestAsk(styleCode) {
   await delay();
 
   const query = normaliseStyleCode(styleCode);
 
   try {
-    const targetUrl = `https://stockx.com/api/browse?_search=${encodeURIComponent(query)}&dataType=product&market=EUR&currency=EUR`;
+    const targetUrl = `https://stockx.com/search?s=${encodeURIComponent(query)}`;
 
     const response = await axios.get("https://api.scraperapi.com", {
       params: {
         api_key: SCRAPERAPI_KEY,
         url: targetUrl,
-        render: false,
+        render: true,
       },
-      timeout: 30000,
+      timeout: 60000,
     });
 
-    const edges = response.data?.Products || [];
+    const html = response.data;
 
-    if (!edges.length) {
+    // Extract the Next.js embedded JSON data
+    const jsonMatch = html.match(
+      /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
+    );
+
+    if (!jsonMatch) {
+      console.warn(`[StockX] Could not find __NEXT_DATA__ for: ${styleCode}`);
+      return null;
+    }
+
+    const nextData = JSON.parse(jsonMatch[1]);
+    const products =
+      nextData?.props?.pageProps?.searchResults?.edges?.map((e) => e.node) || [];
+
+    if (!products.length) {
       console.warn(`[StockX] No results for style code: ${styleCode}`);
       return null;
     }
 
-    const normalised = styleCode.replace(/\s+/g, "").toLowerCase();
-    let match = edges.find((p) => {
+    const normalised = styleCode.replace(/[\s-]/g, "").toLowerCase();
+    let match = products.find((p) => {
       const id = (p.styleId || "").replace(/[\s-]/g, "").toLowerCase();
       return id === normalised;
     });
 
     if (!match) {
-      match = edges[0];
+      match = products[0];
       console.warn(
         `[StockX] Exact match not found for "${styleCode}", using first result: "${match.title}" (${match.styleId})`
       );
     }
 
-    const lowestAsk = match.market?.lowestAsk ?? match.lowestAsk ?? null;
+    const lowestAsk = match.market?.lowestAsk ?? null;
 
-    if (lowestAsk === null || lowestAsk === undefined) {
-      console.warn(`[StockX] No lowestAsk found for style code: ${styleCode}`);
+    if (lowestAsk === null) {
+      console.warn(`[StockX] No lowestAsk for: ${styleCode}`);
       return null;
     }
 
     return Number(lowestAsk);
   } catch (err) {
-    if (err.response?.status === 429) {
-      console.error(`[StockX] Rate limited (429) for style code: ${styleCode}. Skipping.`);
-    } else if (err.response?.status === 403) {
-      console.error(`[StockX] Forbidden (403) for style code: ${styleCode}. Bot detection triggered.`);
-    } else {
-      console.error(`[StockX] Error fetching price for "${styleCode}": ${err.message}`);
-    }
+    console.error(`[StockX] Error fetching price for "${styleCode}": ${err.message}`);
     return null;
   }
 }
